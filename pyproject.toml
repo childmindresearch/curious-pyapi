@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[project]
+name = "curious-pyapi"
+dynamic = ["version"]
+description = "Python interface for Curious API."
+readme = "README.md"
+authors = [
+    { name = "Jon Cluce", email = "jon.clucas@childmind.org" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic[email]>=2.13.4",
+]
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
