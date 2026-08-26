@@ -12,3 +12,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Curious authentication.
 - `CuriousAccount` schema.
 - `CuriousId` type.
+- ![Dependabot](https://avatars.githubusercontent.com/u/27347476?s=14&v=4) config.
+- GitHub Actions workflow to publish to PyPI.

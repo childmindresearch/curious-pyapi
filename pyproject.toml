@@ -12,6 +12,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "fastexcel>=0.21.0",
     "httpx>=0.28.1",
     "polars>=1.44.0",
     "pydantic[email]>=2.13.4",
