@@ -16,8 +16,8 @@ class CuriousAuth(BaseModel):
 
     curious_email: EmailStr
     curious_password: SecretStr
-    applet_id: CuriousId
-    applet_password: SecretStr
+    applet_id: Optional[CuriousId] = None
+    applet_password: Optional[SecretStr] = None
 
     @property
     def login_credentials(self) -> dict[str, str | SecretStr]:

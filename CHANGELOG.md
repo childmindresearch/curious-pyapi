@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Push account to Curious method.
 - Create new Curious user method.
+- Accept Curious invitation method.
 
 ## [0.1.0]
 

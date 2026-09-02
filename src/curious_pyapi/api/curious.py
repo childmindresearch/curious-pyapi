@@ -26,6 +26,8 @@ class CuriousApiClient(ApiClient):
     auth_login = EndpointPath("/auth/login")
     invite_user = EndpointPath("/invitations/{applet_id}/{user_type}")
     invitations = EndpointPath("/invitations")
+    invitation_accept = EndpointPath("/invitations/{key}/accept")
+
     me = EndpointPath("/users/me")
     user_create = EndpointPath("/users")
 
@@ -39,48 +41,53 @@ class CuriousApiClient(ApiClient):
         self.base_url = httpx.URL(str(base_url))
         self._tokens: Optional[Tokens] = None
         self._auth_header: Optional[str] = None
+        self._my_name: Optional[str] = None
+        self._applets: dict[str, Applet] = {}
+
+        # Always initialize a valid client instance
+        self._client = httpx.Client(
+            base_url=str(self.base_url),
+            follow_redirects=True,
+            event_hooks={
+                "request": [self._inject_auth_header],
+                "build": [self._inject_auth_header],
+            },
+        )
+
         if auth:
             self.authenticate(auth)
-        # Request event hook forces Authorization header onto EVERY outbound request
-        if self._tokens:
-            self._client = httpx.Client(
-                base_url=str(self.base_url),
-                headers=headers(self._tokens.access.get_secret_value()),
-                follow_redirects=True,  # Ensure redirects are followed
-                event_hooks={},
-            )
-        else:
-            self._client = NotImplemented()
-        self._applets: "dict[str, Applet]" = self.get_applets(refresh=True)
+            # Pre-load applets only after successful authentication
+            self.get_applets(refresh=True)
 
     def __str__(self) -> str:
-        """Return string representation of Curious API client."""
-        return f"CuriousApiClient({self.my_name})"
+        """Return string representation of Curious API client without side-effects."""
+        name_str = self._my_name if self._my_name else "Unauthenticated"
+        return f"CuriousApiClient({name_str})"
 
     def __repr__(self) -> str:
-        """Return reproducable string representation of Curious API client."""
-        return (
-            f"CuriousApiClient(auth=CuriousAuth({self.my_name}), "
-            f'base_url="{self.base_url}")'
-        )
+        """Return reproducible string without triggering network calls."""
+        name_str = f'"{self._my_name}"' if self._my_name else "None"
+        return f'CuriousApiClient(name={name_str}, base_url="{self.base_url}")'
 
-    def fetch_name(self) -> None:
+    def fetch_name(self) -> str:
         """Fetch and return the user's name from the API."""
         me = self.me.get()
-        me_json = me.json().get("result", [])
-        self._my_name = " ".join(
-            [
-                name
-                for name in [me_json[name] for name in ["firstName", "lastName"]]
-                if name
-            ]
-        )
+        me_json = me.json().get("result", {})
+
+        first = me_json.get("firstName", "")
+        last = me_json.get("lastName", "")
+        self._my_name = " ".join(filter(None, [first, last]))
+        return self._my_name
 
     @property
     def my_name(self) -> str:
-        """Return memoized string name."""
-        if not hasattr(self, "_my_name"):
-            self.fetch_name()
+        """Return memoized string name, fetching only if authenticated and missing."""
+        if self._my_name is None:
+            if self.is_authenticated:
+                self.fetch_name()
+            else:
+                return "Unauthenticated"
+        assert isinstance(self._my_name, str)
         return self._my_name
 
     def _inject_auth_header(self, request: httpx.Request) -> None:
@@ -88,18 +95,19 @@ class CuriousApiClient(ApiClient):
         if self._auth_header:
             request.headers["Authorization"] = self._auth_header
 
-    def get_applets(self, refresh: bool = False) -> "dict[str, Applet]":
+    def get_applets(self, refresh: bool = False) -> None:
         """Gather bound Applets into a dict."""
-        if not refresh and hasattr(self, "_applets"):
-            return self._applets
+        if not refresh and self._applets:
+            return
+
         applets: "dict[str, Applet]" = {}
-        for applet in self.applets.get().json().get("result", []):
+        result = self.applets.get().json().get("result", [])
+        for applet in result:
             if {"displayName", "id"}.issubset(applet):
                 applets[applet["displayName"]] = Applet(
                     self, applet["id"], display_name=applet["displayName"]
                 )
         self._applets = applets
-        return applets
 
     @property
     def is_authenticated(self) -> bool:
@@ -114,12 +122,11 @@ class CuriousApiClient(ApiClient):
             raise AuthenticationError(msg)
 
         self._tokens = tokens
-        self._auth_header = f"Bearer {tokens.access}"
+        self._auth_header = f"Bearer {tokens.access.get_secret_value()}"
         LOGGER.info("Successfully authenticated as Bearer token.")
 
     def _fetch_tokens(self, credentials: dict[str, str | SecretStr]) -> Tokens:
         """Post login credentials to obtain tokens."""
-        # Use full HTTPS URL directly for login to bypass initial auth injection
         target_url = str(self.base_url.join(httpx.URL("auth/login")))
         try:
             response = httpx.post(
@@ -157,13 +164,13 @@ class CuriousApiClient(ApiClient):
             LOGGER.warning(
                 "Attempting unauthenticated '%s' request to '%s'", method, clean_path
             )
-
+        request = self._client.build_request(method, clean_path, **kwargs)
+        LOGGER.exception(request)
         try:
             response = self._client.request(method, clean_path, **kwargs)
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
-            # Helpful debug log to verify headers that were sent
             LOGGER.exception("Sent Headers: %s", dict(e.request.headers))
             LOGGER.exception("Response Error Details: %s", e.response.text)
             raise ApiStatusError(
