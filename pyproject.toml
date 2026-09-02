@@ -17,6 +17,24 @@ dependencies = [
     "polars>=1.44.0",
     "pydantic[email]>=2.13.4",
 ]
+license-files = ["LICENSE"]
+license = "MIT"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/childmindresearch/curious-pyapi"
+Issues = "https://github.com/childmindresearch/curious-pyapi/issues"
+Changelog = "https://github.com/childmindresearch/curious-pyapi/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
