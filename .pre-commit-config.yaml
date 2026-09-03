@@ -47,4 +47,4 @@ repos:
       - pydantic>=2.0.0
       - types-pytz
       - types-requests
-    language_version: python3.14
+    language_version: python3.12
