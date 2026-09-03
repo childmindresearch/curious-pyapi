@@ -10,13 +10,7 @@ readme = "README.md"
 authors = [
     { name = "Jon Cluce", email = "jon.clucas@childmind.org" }
 ]
-requires-python = ">=3.14"
-dependencies = [
-    "fastexcel>=0.21.0",
-    "httpx>=0.28.1",
-    "polars>=1.44.0",
-    "pydantic[email]>=2.13.4",
-]
+requires-python = ">=3.12"
 license-files = ["LICENSE"]
 license = "MIT"
 classifiers = [
@@ -26,9 +20,17 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
+]
+dependencies = [
+    "fastexcel>=0.21.0",
+    "httpx>=0.28.1",
+    "polars>=1.44.1",
+    "pydantic[email]>=2.13.5",
 ]
 
 [project.urls]
@@ -44,7 +46,7 @@ reportUnknownMemberType = false
 
 [tool.ruff]
 line-length = 88
-target-version = "py314"
+target-version = "py312"
 
 [tool.ruff.lint]
 extend-select = ["A", "B904", "C4", "D", "E", "EM", "F541", "G", "I", "ICN", "LOG007", "N", "NPY", "PL", "RET", "RSE", "RUF", "Q", "T20", "TRY002", "TRY201", "TRY400", "TRY401", "UP032", "W"]
