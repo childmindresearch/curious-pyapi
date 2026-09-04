@@ -154,6 +154,19 @@ class CuriousApiClient(ApiClient):
             msg = f"Authentication request failed: {e}"
             raise AuthenticationError(msg) from e
 
+    def _retry_request(
+        self, error: str, method: str, path: str, _retries: int, **kwargs: Any
+    ) -> httpx.Response:
+        """Retry the request if retries are left, otherwise raise an error."""
+        LOGGER.warning(
+            "%s error on '%s' request to '%s'. Retrying... (%d retries left)",
+            error,
+            method,
+            path,
+            _retries,
+        )
+        return self.request(method, path, _retries=_retries - 1, **kwargs)
+
     def request(
         self, method: str, path: str | httpx.URL, *, _retries: int = 3, **kwargs: Any
     ) -> httpx.Response:
@@ -169,6 +182,10 @@ class CuriousApiClient(ApiClient):
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
+            if e.response.status_code == httpx.codes.BAD_GATEWAY and _retries > 0:
+                return self._retry_request(
+                    "Bad gateway", method, clean_path, _retries - 1, **kwargs
+                )
             LOGGER.debug("Sent Headers: %s", dict(e.request.headers))
             LOGGER.debug("Response Error Details: %s", e.response.text)
             raise ApiStatusError(
@@ -176,7 +193,9 @@ class CuriousApiClient(ApiClient):
             ) from e
         except httpx.HTTPError as e:
             if _retries > 0:
-                return self.request(method, clean_path, _retries=_retries - 1, **kwargs)
+                return self._retry_request(
+                    "Network", method, clean_path, _retries - 1, **kwargs
+                )
             msg = f"Network transport error: {e}"
             raise CuriousApiError(msg) from e
 
