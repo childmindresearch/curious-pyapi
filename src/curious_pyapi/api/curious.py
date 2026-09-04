@@ -195,7 +195,7 @@ class CuriousApiClient(ApiClient):
         """For each row in DataFrame, create an account in Curious."""
         _create_accounts_from_df(self, df, applet_id, user_type, limit=limit)
 
-    def __enter__(self) -> CuriousApiClient:
+    def __enter__(self) -> "CuriousApiClient":
         """Enter context manager and return self."""
         return self
 
