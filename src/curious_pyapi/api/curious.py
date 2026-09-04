@@ -155,7 +155,7 @@ class CuriousApiClient(ApiClient):
             raise AuthenticationError(msg) from e
 
     def request(
-        self, method: str, path: str | httpx.URL, **kwargs: Any
+        self, method: str, path: str | httpx.URL, *, _retries: int = 3, **kwargs: Any
     ) -> httpx.Response:
         """Centralized transport gateway with error mapping and auth checking."""
         clean_path = str(path).lstrip("/")
@@ -164,19 +164,19 @@ class CuriousApiClient(ApiClient):
             LOGGER.warning(
                 "Attempting unauthenticated '%s' request to '%s'", method, clean_path
             )
-        request = self._client.build_request(method, clean_path, **kwargs)
-        LOGGER.exception(request)
         try:
             response = self._client.request(method, clean_path, **kwargs)
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
-            LOGGER.exception("Sent Headers: %s", dict(e.request.headers))
-            LOGGER.exception("Response Error Details: %s", e.response.text)
+            LOGGER.debug("Sent Headers: %s", dict(e.request.headers))
+            LOGGER.debug("Response Error Details: %s", e.response.text)
             raise ApiStatusError(
                 str(e.response), request=e.request, response=e.response
             ) from e
         except httpx.HTTPError as e:
+            if _retries > 0:
+                return self.request(method, clean_path, _retries=_retries - 1, **kwargs)
             msg = f"Network transport error: {e}"
             raise CuriousApiError(msg) from e
 
