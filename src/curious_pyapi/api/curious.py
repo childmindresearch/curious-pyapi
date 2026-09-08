@@ -7,7 +7,12 @@ import httpx
 import polars as pl
 from pydantic import AnyHttpUrl, SecretStr
 
-from ..exceptions import ApiStatusError, AuthenticationError, CuriousApiError
+from ..exceptions import (
+    ApiStatusError,
+    AuthenticationError,
+    CuriousApiError,
+    ExistingUserError,
+)
 from ..schema.curious import CuriousId, NewUserData, Record
 from ..schema.pyapi import ApiClient, CuriousAuth, EndpointPath, Tokens, url
 from ..utils.data import api_data
@@ -30,19 +35,28 @@ class CuriousApiClient(ApiClient):
 
     me = EndpointPath("/users/me")
     user_create = EndpointPath("/users")
+    existing_users = EndpointPath(
+        lambda self: (
+            f"/workspaces/{self._owner_id if self._owner_id else self.my_id}/"
+            "respondents"
+        )
+    )
 
     def __init__(
         self,
         *,
         auth: Optional[CuriousAuth] = None,
         base_url: httpx.URL | AnyHttpUrl = CURIOUS_BASE_URL,
+        owner_id: Optional[CuriousId] = None,
     ) -> None:
         """Initialize Curious API Client."""
         self.base_url = httpx.URL(str(base_url))
         self._tokens: Optional[Tokens] = None
         self._auth_header: Optional[str] = None
+        self._my_id: Optional[CuriousId] = None
         self._my_name: Optional[str] = None
         self._applets: dict[str, Applet] = {}
+        self._owner_id: Optional[CuriousId] = owner_id
 
         # Always initialize a valid client instance
         self._client = httpx.Client(
@@ -77,7 +91,16 @@ class CuriousApiClient(ApiClient):
         first = me_json.get("firstName", "")
         last = me_json.get("lastName", "")
         self._my_name = " ".join(filter(None, [first, last]))
+        self._my_id = me_json.get("id", "")
         return self._my_name
+
+    @property
+    def my_id(self) -> str:
+        """Return memoized string ID, fetching only if authenticated and missing."""
+        if self._my_id is None:
+            self.fetch_name()
+        assert isinstance(self._my_id, str)
+        return self._my_id
 
     @property
     def my_name(self) -> str:
@@ -156,7 +179,7 @@ class CuriousApiClient(ApiClient):
 
     def _retry_request(
         self, error: str, method: str, path: str, _retries: int, **kwargs: Any
-    ) -> httpx.Response:
+    ) -> httpx.Response | None:
         """Retry the request if retries are left, otherwise raise an error."""
         LOGGER.warning(
             "%s error on '%s' request to '%s'. Retrying... (%d retries left)",
@@ -182,20 +205,36 @@ class CuriousApiClient(ApiClient):
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
+            if e.response.status_code == httpx.codes.BAD_REQUEST:
+                result = e.response.json()["result"]
+                if any(
+                    _.get("message") == "That email address is already associated "
+                    "with a Curious account."
+                    for _ in result
+                    if isinstance(_, dict)
+                ):
+                    msg = "User already exists"
+                    raise ExistingUserError(msg) from e
             if e.response.status_code == httpx.codes.BAD_GATEWAY and _retries > 0:
-                return self._retry_request(
-                    "Bad gateway", method, clean_path, _retries - 1, **kwargs
+                return (
+                    self._retry_request(
+                        "Bad gateway", method, clean_path, _retries - 1, **kwargs
+                    )
+                    or e.response
                 )
             LOGGER.debug("Sent Headers: %s", dict(e.request.headers))
             LOGGER.debug("Response Error Details: %s", e.response.text)
+
             raise ApiStatusError(
                 str(e.response), request=e.request, response=e.response
             ) from e
         except httpx.HTTPError as e:
             if _retries > 0:
-                return self._retry_request(
+                response = self._retry_request(
                     "Network", method, clean_path, _retries - 1, **kwargs
                 )
+                if response:
+                    return response
             msg = f"Network transport error: {e}"
             raise CuriousApiError(msg) from e
 
@@ -221,6 +260,10 @@ class CuriousApiClient(ApiClient):
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit context manager and close the client."""
         self.close()
+
+    def applet_invitations(self, applet_id: CuriousId) -> httpx.Response:
+        """Return all invitations for a given applet."""
+        return self.invitations.get(params={"appletId": applet_id, "limit": 10000})
 
 
 class Applet:

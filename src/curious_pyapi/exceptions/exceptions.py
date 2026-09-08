@@ -64,3 +64,7 @@ class AuthenticationError(RequestError):
 
 class CuriousApiError(RequestError):
     """Raised for general Curious API errors."""
+
+
+class ExistingUserError(CuriousApiError):
+    """Raised when attempting to create a user that already exists."""

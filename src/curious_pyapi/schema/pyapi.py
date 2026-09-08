@@ -1,6 +1,6 @@
 """Curious-PyAPI schemas."""
 
-from typing import Any, Optional, overload
+from typing import Any, Callable, Optional, overload
 
 from httpx import Response, URL
 from pydantic import AnyHttpUrl, BaseModel, EmailStr, SecretStr
@@ -64,21 +64,24 @@ class BoundEndpoint:
 class EndpointPath:
     """Endpoint path or full URL."""
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str | Callable[[Any], str]) -> None:
         """Initialize endpoint path."""
-        self.path = path
+        self._path_factory = path if callable(path) else lambda inst: path
 
     @overload
-    def __get__(self, instance: None, owner: Any) -> str: ...
+    def __get__(self, instance: None, owner: Any) -> "EndpointPath": ...
 
     @overload
     def __get__(self, instance: ApiClient, owner: Any) -> BoundEndpoint: ...
 
-    def __get__(self, instance: Optional[ApiClient], owner: Any) -> str | BoundEndpoint:
+    def __get__(
+        self, instance: Optional[ApiClient], owner: Any
+    ) -> "EndpointPath | BoundEndpoint":
         """Return path or bound endpoint."""
         if instance is None:
-            return self.path
-        return BoundEndpoint(instance, self.path)
+            return self
+        path = self._path_factory(instance)
+        return BoundEndpoint(instance, path)
 
 
 class Endpoint:
