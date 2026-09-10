@@ -5,14 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12]
+
+### Added
+
+- Handling for invalid passwords.
+
 ## [0.1.11]
 
-### Changed
+### Added
 
-- Added `ExistingUserError`.
-- Added `applet_invitations` endpoint with large pagesize.
-- Added `existing_users` endpoint.
-- Added `my_id` client property.
+- `ExistingUserError`.
+- `applet_invitations` endpoint with large pagesize.
+- `existing_users` endpoint.
+- `my_id` client property.
 
 ## [0.1.10]
 

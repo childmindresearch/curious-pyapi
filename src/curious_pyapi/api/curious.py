@@ -205,29 +205,55 @@ class CuriousApiClient(ApiClient):
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == httpx.codes.BAD_REQUEST:
-                result = e.response.json()["result"]
-                if any(
-                    _.get("message") == "That email address is already associated "
-                    "with a Curious account."
-                    for _ in result
-                    if isinstance(_, dict)
-                ):
-                    msg = "User already exists"
-                    raise ExistingUserError(msg) from e
-            if e.response.status_code == httpx.codes.BAD_GATEWAY and _retries > 0:
-                return (
-                    self._retry_request(
-                        "Bad gateway", method, clean_path, _retries - 1, **kwargs
-                    )
-                    or e.response
-                )
+            match e.response.status_code:
+                case httpx.codes.BAD_REQUEST:
+                    result = e.response.json()["result"]
+                    messages: list[str] = [
+                        _["message"]
+                        for _ in result
+                        if isinstance(_, dict)
+                        if "message" in _ and isinstance(_["message"], str)
+                    ]
+                    if any(
+                        message == "That email address is already associated "
+                        "with a Curious account."
+                        for message in messages
+                    ):
+                        msg = "User already exists"
+                        raise ExistingUserError(msg) from e
+                    if any("password" in message.lower() for message in messages):
+                        msg = [
+                            message
+                            for message in messages
+                            if "password" in message.lower()
+                        ]
+                        _password = kwargs.get("json", {}).get("password", "")
+                        LOGGER.warning(
+                            "Password error: %s\nlen(%s)=%d",
+                            msg,
+                            _password,
+                            len(_password),
+                        )
+                        return e.response
+                case httpx.codes.BAD_GATEWAY:
+                    if _retries > 0:
+                        return (
+                            self._retry_request(
+                                "Bad gateway",
+                                method,
+                                clean_path,
+                                _retries - 1,
+                                **kwargs,
+                            )
+                            or e.response
+                        )
             LOGGER.debug("Sent Headers: %s", dict(e.request.headers))
             LOGGER.debug("Response Error Details: %s", e.response.text)
-
-            raise ApiStatusError(
-                str(e.response), request=e.request, response=e.response
-            ) from e
+            msg = (
+                f"HTTP error {e.response.status_code} for '{method}' request "
+                f"to '{clean_path}': {e.response.text}"
+            )
+            raise ApiStatusError(msg, request=e.request, response=e.response) from e
         except httpx.HTTPError as e:
             if _retries > 0:
                 response = self._retry_request(
