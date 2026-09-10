@@ -235,6 +235,15 @@ class CuriousApiClient(ApiClient):
                             len(_password),
                         )
                         return e.response
+                    if any(
+                        "Invitation has been already processed." in message
+                        for message in messages
+                    ):
+                        LOGGER.warning(
+                            "Invitation %s has been already processed.",
+                            kwargs.get("json", {}).get("key", ""),
+                        )
+                        return e.response
                 case httpx.codes.BAD_GATEWAY:
                     if _retries > 0:
                         return (
