@@ -41,6 +41,11 @@ class CuriousApiClient(ApiClient):
             "respondents"
         )
     )
+    respondent_list = EndpointPath(
+        lambda self: "/".join(
+            [f"/workspaces/{self._owner_id}/applets", "{applet_id}/respondents"]
+        )
+    )
 
     def __init__(
         self,
@@ -181,11 +186,15 @@ class CuriousApiClient(ApiClient):
         self, error: str, method: str, path: str, _retries: int, **kwargs: Any
     ) -> httpx.Response | None:
         """Retry the request if retries are left, otherwise raise an error."""
+        params_info = (
+            f" with params {kwargs.get('params')}" if "params" in kwargs else ""
+        )
         LOGGER.warning(
-            "%s error on '%s' request to '%s'. Retrying... (%d retries left)",
+            "%s error on '%s' request to '%s%s'. Retrying... (%d retries left)",
             error,
             method,
             path,
+            params_info,
             _retries,
         )
         return self.request(method, path, _retries=_retries - 1, **kwargs)

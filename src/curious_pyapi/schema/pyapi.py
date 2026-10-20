@@ -52,6 +52,31 @@ class BoundEndpoint:
         """Return base URL."""
         return self._client.base_url.join(URL(self.path.lstrip("/")))
 
+    def get_all(self, limit: int = 50, **kwargs: Any) -> list[dict[str, Any]]:
+        """Fetch and return all paginated records as a single list."""
+        params = kwargs.pop("params", {})
+        params["limit"] = limit
+        params["page"] = 1
+
+        # Initial request to get the first batch and the total count
+        initial_response = self.get(params=params, **kwargs).json()
+        results = initial_response.get("result", [])
+        total_count = initial_response.get("count", len(results))
+
+        # Keep fetching until we have all the records
+        while len(results) < total_count:
+            params["page"] += 1
+            next_response = self.get(params=params, **kwargs).json()
+
+            # Safety break in case 'count' is inaccurate and we hit an empty page
+            page_results = next_response.get("result", [])
+            if not page_results:
+                break
+
+            results.extend(page_results)
+
+        return results
+
     def get(self, **kwargs: Any) -> Response:
         """Return GET response."""
         return self._client.request("GET", self.path, **kwargs)
