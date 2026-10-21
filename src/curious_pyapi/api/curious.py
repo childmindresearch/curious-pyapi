@@ -14,7 +14,16 @@ from ..exceptions import (
     ExistingUserError,
 )
 from ..schema.curious import CuriousId, NewUserData, Record
-from ..schema.pyapi import ApiClient, CuriousAuth, EndpointPath, Tokens, url
+from ..schema.pyapi import (
+    ApiClient,
+    AppletParticipant,
+    AppletParticipantById,
+    AppletParticipantBySubjectId,
+    CuriousAuth,
+    EndpointPath,
+    Tokens,
+    url,
+)
 from ..utils.data import api_data
 from ..utils.defaults import CURIOUS_BASE_URL, headers
 from ..utils.logging import get_logger
@@ -32,6 +41,7 @@ class CuriousApiClient(ApiClient):
     invite_user = EndpointPath("/invitations/{applet_id}/{user_type}")
     invitations = EndpointPath("/invitations")
     invitation_accept = EndpointPath("/invitations/{key}/accept")
+    _delete_subject = EndpointPath("/subjects/{subject_id}")
 
     me = EndpointPath("/users/me")
     user_create = EndpointPath("/users")
@@ -39,6 +49,14 @@ class CuriousApiClient(ApiClient):
         lambda self: (
             f"/workspaces/{self._owner_id if self._owner_id else self.my_id}/"
             "respondents"
+        )
+    )
+    respondent = EndpointPath(
+        lambda self: "/".join(
+            [
+                f"/workspaces/{self._owner_id}/applets",
+                "{applet_id}/respondents/{respondent_id}",
+            ]
         )
     )
     respondent_list = EndpointPath(
@@ -117,6 +135,42 @@ class CuriousApiClient(ApiClient):
                 return "Unauthenticated"
         assert isinstance(self._my_name, str)
         return self._my_name
+
+    def uninvite(self, applet_participant: AppletParticipant) -> None:
+        """Uninvite a participant from an applet."""
+        subject_id: CuriousId | None = None
+        if isinstance(applet_participant, AppletParticipantById):
+            if applet_participant.id:
+                subject_id = (
+                    self.respondent(
+                        applet_id=applet_participant.applet_id,
+                        respondent_id=applet_participant.id,
+                    )
+                    .get()
+                    .json()
+                    .get("result", {})
+                    .get("subjectId")
+                )
+            else:
+                subjects = (
+                    self.respondent_list(
+                        applet_id=applet_participant.applet_id,
+                        search=applet_participant.secret_id,
+                    )
+                    .get()
+                    .json()
+                    .get("result", [])
+                )
+                if subjects:
+                    subject_id = subjects[0].get("subjectId")
+
+        if subject_id:
+            self._delete_subject(subject_id=subject_id).delete()
+
+    def uninvite_accounts_from_df(self, df: pl.DataFrame) -> None:
+        """Uninvite each account in a DataFrame by `subjectId`."""
+        for subject_id in df["subjectId"]:
+            self.uninvite(AppletParticipantBySubjectId(subject_id=subject_id))
 
     def _inject_auth_header(self, request: httpx.Request) -> None:
         """Event hook executed right before any request is sent over the wire."""

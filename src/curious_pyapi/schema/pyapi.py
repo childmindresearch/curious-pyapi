@@ -3,7 +3,8 @@
 from typing import Any, Callable, Optional, overload
 
 from httpx import Response, URL
-from pydantic import AnyHttpUrl, BaseModel, EmailStr, SecretStr
+from pydantic import AnyHttpUrl, BaseModel, EmailStr, model_validator, SecretStr
+from typing_extensions import Self
 
 from ..utils.logging import get_logger
 from .curious import CuriousId
@@ -51,6 +52,10 @@ class BoundEndpoint:
     def url(self) -> URL:
         """Return base URL."""
         return self._client.base_url.join(URL(self.path.lstrip("/")))
+
+    def delete(self, **kwargs: Any) -> Response:
+        """Return DELETE response."""
+        return self._client.request("DELETE", self.path, **kwargs)
 
     def get_all(self, limit: int = 50, **kwargs: Any) -> list[dict[str, Any]]:
         """Fetch and return all paginated records as a single list."""
@@ -142,3 +147,31 @@ def url(url: URL | AnyHttpUrl) -> URL:
         url = URL(url)
     assert isinstance(url, URL)
     return url
+
+
+class AppletParticipantById(BaseModel):
+    """Curious applet participant identified by ID."""
+
+    applet_id: CuriousId
+    id: Optional[CuriousId] = None
+    secret_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_one_or_the_other(self) -> Self:
+        """Ensure that either `id` or `secret_id` is provided, but not both."""
+        if not any([self.id, self.secret_id]):
+            msg = "You must provide either 'id' or 'secret_id'."
+            raise ValueError(msg)
+        if all([self.id, self.secret_id]):
+            msg = "You cannot provide both 'id' and 'secret_id'."
+            raise ValueError(msg)
+        return self
+
+
+class AppletParticipantBySubjectId(BaseModel):
+    """Curious applet participant identified by subject ID."""
+
+    subject_id: CuriousId
+
+
+AppletParticipant = AppletParticipantById | AppletParticipantBySubjectId
