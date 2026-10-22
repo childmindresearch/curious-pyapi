@@ -139,7 +139,11 @@ class CuriousApiClient(ApiClient):
     def uninvite(self, applet_participant: AppletParticipant) -> None:
         """Uninvite a participant from an applet."""
         subject_id: CuriousId | None = None
-        if isinstance(applet_participant, AppletParticipantById):
+
+        if isinstance(applet_participant, AppletParticipantBySubjectId):
+            subject_id = applet_participant.subject_id
+
+        elif isinstance(applet_participant, AppletParticipantById):
             if applet_participant.id:
                 subject_id = (
                     self.respondent(
