@@ -350,14 +350,10 @@ class CuriousApiClient(ApiClient):
         df: pl.DataFrame,
         applet_id: CuriousId,
         user_type: str = "respondent",
-        *,
-        limit: Optional[int] = None,
-        verbose: bool = False,
+        **kwargs: Unpack[ApiKwargs.Kwargs],
     ) -> None:
         """For each row in DataFrame, create an account in Curious."""
-        _create_accounts_from_df(
-            self, df, applet_id, user_type, limit=limit, verbose=verbose
-        )
+        _create_accounts_from_df(self, df, applet_id, user_type, **kwargs)
 
     def __enter__(self) -> "CuriousApiClient":
         """Enter context manager and return self."""
