@@ -3,6 +3,7 @@
 import logging
 from unittest.mock import MagicMock
 
+import httpx
 import polars as pl
 
 from curious_pyapi.api.curious import create_accounts_from_df
@@ -38,7 +39,7 @@ def test_limit_truncates():
     client = MagicMock()
     invite = MagicMock()
     invite.url = "https://forever.people/invitations/new-genesis16/respondent"
-    invite.post.return_value.status_code = 200
+    invite.post.return_value.status_code = httpx.codes.OK
     client.invite_user.return_value = invite
     create_accounts_from_df(
         client, _df(), applet_id="new-genesis16", user_type="respondent", limit=2
@@ -52,7 +53,7 @@ def test_verbose_logs(caplog):
     invite = MagicMock()
     invite.url = "https://forever.people/invitations/new-genesis16/respondent"
     resp = MagicMock()
-    resp.status_code = 201
+    resp.status_code = httpx.codes.CREATED
     invite.post.return_value = resp
     client.invite_user.return_value = invite
     with caplog.at_level(logging.INFO):
