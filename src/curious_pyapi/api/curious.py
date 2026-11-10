@@ -1,7 +1,7 @@
 """Curious API functionality."""
 
 import json
-from typing import Any, Optional
+from typing import Any, Optional, Unpack
 
 import httpx
 import polars as pl
@@ -16,6 +16,7 @@ from ..exceptions import (
 from ..schema.curious import CuriousId, NewUserData, Record
 from ..schema.pyapi import (
     ApiClient,
+    ApiKwargs,
     AppletParticipant,
     AppletParticipantById,
     AppletParticipantBySubjectId,
@@ -139,7 +140,11 @@ class CuriousApiClient(ApiClient):
     def uninvite(self, applet_participant: AppletParticipant) -> None:
         """Uninvite a participant from an applet."""
         subject_id: CuriousId | None = None
-        if isinstance(applet_participant, AppletParticipantById):
+
+        if isinstance(applet_participant, AppletParticipantBySubjectId):
+            subject_id = applet_participant.subject_id
+
+        elif isinstance(applet_participant, AppletParticipantById):
             if applet_participant.id:
                 subject_id = (
                     self.respondent(
@@ -346,10 +351,13 @@ class CuriousApiClient(ApiClient):
         applet_id: CuriousId,
         user_type: str = "respondent",
         *,
-        limit=None,
+        limit: Optional[int] = None,
+        verbose: bool = False,
     ) -> None:
         """For each row in DataFrame, create an account in Curious."""
-        _create_accounts_from_df(self, df, applet_id, user_type, limit=limit)
+        _create_accounts_from_df(
+            self, df, applet_id, user_type, limit=limit, verbose=verbose
+        )
 
     def __enter__(self) -> "CuriousApiClient":
         """Enter context manager and return self."""
@@ -482,14 +490,21 @@ def create_accounts_from_df(
     df: pl.DataFrame,
     applet_id: CuriousId,
     user_type: str = "respondent",
-    *,
-    limit=None,
+    **kwargs: Unpack[ApiKwargs.Kwargs],
 ) -> None:
     """For each row in DataFrame, create an account in Curious."""
+    dry, limit, verbose = ApiKwargs.unpack(kwargs)
     if limit:
         df = df.head(limit)
     for record in df.to_dicts():
-        client.invite_user(applet_id=applet_id, user_type=user_type).post(json=record)
+        invite = client.invite_user(applet_id=applet_id, user_type=user_type)
+        if dry:
+            status_code = httpx.codes.NO_CONTENT
+        else:
+            response = invite.post(json=record)
+            status_code = response.status_code
+        if verbose:
+            LOGGER.info("%s: %s: %d", record, invite.url, status_code)
 
 
 _create_accounts_from_df = create_accounts_from_df
