@@ -1,6 +1,6 @@
 """Curious-PyAPI schemas."""
 
-from typing import Any, Callable, Optional, overload
+from typing import Any, Callable, Optional, overload, TypedDict
 
 from httpx import Response, URL
 from pydantic import AnyHttpUrl, BaseModel, EmailStr, model_validator, SecretStr
@@ -175,3 +175,33 @@ class AppletParticipantBySubjectId(BaseModel):
 
 
 AppletParticipant = AppletParticipantById | AppletParticipantBySubjectId
+
+
+class ApiKwargs:
+    """Type-aware API keyword arguments."""
+
+    class Kwargs(TypedDict, total=False):
+        """Additional keyword arguments for API requests."""
+
+        dry: bool
+        """Whether to perform a dry run without making actual changes."""
+        limit: int | None
+        """Maximum number of items to process."""
+        verbose: bool
+        """Whether to enable verbose logging."""
+
+    DEFAULTS = Kwargs(
+        {
+            "dry": False,
+            "limit": None,
+            "verbose": False,
+        }
+    )
+
+    @staticmethod
+    def unpack(kwargs: Kwargs) -> tuple[bool, int | None, bool]:
+        """Unpack API keyword arguments with defaults."""
+        return tuple(
+            kwargs.get(key, ApiKwargs.DEFAULTS[key])
+            for key in ["dry", "limit", "verbose"]
+        )
